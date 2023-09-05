@@ -1,0 +1,43 @@
+{
+  "name": "netpdf",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "husky install",
+    "lint-staged": "npx lint-staged"
+  },
+  "dependencies": {
+    "@types/node": "^16.11.45",
+    "axios": "^1.4.0",
+    "cheerio": "1.0.0-rc.12",
+    "iconv-lite": "^0.6.3",
+    "pdf-lib": "^1.17.1",
+    "puppeteer": "^21.0.1",
+    "typescript": "^4.7.4"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "node ./scripts/lint.js"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^17.0.2",
+    "@commitlint/config-conventional": "^17.0.2",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-airbnb": "^19.0.0",
+    "eslint-config-prettier": "^8.0.0",
+    "eslint-import-resolver-typescript": "^2.7.1",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-jsx-a11y": "^6.2.1",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-react": "^7.28.0",
+    "fs-extra": "^10.1.0",
+    "glob": "^8.0.3",
+    "husky": "^8.0.1",
+    "lint-staged": "^13.2.3",
+    "prettier": "^2.7.1"
+  },
+  "author": "",
+  "license": "ISC"
+}
