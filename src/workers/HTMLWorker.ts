@@ -1,6 +1,48 @@
-import fs from 'fs/promises';
+import { Page } from 'puppeteer';
 import { CrawlWorker, CrawlWorkerOptions, Task } from './WorkerManager';
-import { sleep } from '../utils/sleep';
+
+export async function mockScroll(page: Page, region: string) {
+  page.exposeFunction('waitForNetworkIdle', () => {
+    return page.waitForNetworkIdle();
+  });
+  await page.$eval(region, (targetEl) => {
+    let domEl = targetEl as HTMLElement;
+    if (domEl) {
+      while (domEl.scrollHeight === domEl.clientHeight) {
+        if (domEl?.parentElement) {
+          domEl = domEl.parentElement;
+        } else {
+          break;
+        }
+      }
+      if (domEl) {
+        return new Promise((resolve) => {
+          let { scrollTop } = domEl;
+          let prevScrollTop = -1;
+          const iter = () => {
+            if (scrollTop !== prevScrollTop) {
+              domEl.scrollTop += domEl.clientHeight / 4;
+              prevScrollTop = scrollTop;
+              scrollTop = domEl.scrollTop;
+            } else {
+              // @ts-ignore
+              window.waitForNetworkIdle().then(() => {
+                resolve(null);
+              });
+              return;
+            }
+            // @ts-ignore
+            window.waitForNetworkIdle().then(() => {
+              iter();
+            });
+          };
+          iter();
+        });
+      }
+    }
+    return null;
+  });
+}
 
 export class HTMLWorker implements CrawlWorker {
   async run(task: Task, { browser }: CrawlWorkerOptions) {
@@ -14,21 +56,16 @@ export class HTMLWorker implements CrawlWorker {
     );
     await page.goto(task.meta.url);
     await page.waitForNetworkIdle();
-
     page.on('error', (err) => {
-      console.log(err);
+      console.error('page error: ', err);
     });
+
     page.on('console', async (msg) => {
       const msgArgs = msg.args();
       const args = [];
       for (let i = 0; i < msgArgs.length; ++i) {
         args.push(await msgArgs[i].jsonValue());
       }
-      console.log(args);
-    });
-
-    page.exposeFunction('waitForNetworkIdle', () => {
-      return page.waitForNetworkIdle();
     });
 
     if (task.meta.removeRegions) {
@@ -40,54 +77,11 @@ export class HTMLWorker implements CrawlWorker {
         });
       }
     }
-    // await page.evaluate(()=> {
-    //   window.
-    // })
 
     if (task.meta.targetRegion && task.meta.scrollMock) {
-      await page.$eval(task.meta.targetRegion, (targetEl) => {
-        let htmlEl = targetEl as HTMLElement;
-
-        if (htmlEl) {
-          // console.log(htmlEl.tagName, htmlEl.className, htmlEl.clientHeight, htmlEl.scrollHeight);
-          while (htmlEl.scrollHeight === htmlEl.clientHeight) {
-            if (htmlEl?.parentElement) {
-              htmlEl = htmlEl.parentElement;
-              // console.log(htmlEl.tagName, htmlEl.className, htmlEl.clientHeight, htmlEl.scrollHeight);
-            } else {
-              break;
-            }
-          }
-          if (htmlEl) {
-            return new Promise((resolve) => {
-              let { scrollTop } = htmlEl;
-              let prevScrollTop = -1;
-              const iter = () => {
-                if (scrollTop !== prevScrollTop) {
-                  htmlEl.scrollTop += htmlEl.clientHeight / 4;
-                  prevScrollTop = scrollTop;
-                  scrollTop = htmlEl.scrollTop;
-                } else {
-                  // @ts-ignore
-                  window.waitForNetworkIdle().then(() => {
-                    resolve(null);
-                  });
-                  return;
-                }
-                // @ts-ignore
-                window.waitForNetworkIdle().then(() => {
-                  iter();
-                });
-              };
-              iter();
-            });
-          }
-        }
-        return null;
-      });
+      await mockScroll(page, task.meta.targetRegion);
     }
     if (task.meta.targetRegion) {
-      // const $targetHandle = await page.$(task.meta.targetRegion);
       await page.$eval(task.meta.targetRegion, (targetEl) => {
         const setElStyle = (el: HTMLElement, css: string) => {
           const oldStyle = el.getAttribute('style');

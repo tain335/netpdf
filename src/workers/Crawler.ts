@@ -1,11 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 import iconv from 'iconv-lite';
 import * as cheerio from 'cheerio';
-import { PDFMargin } from 'puppeteer';
+import puppeteer, { PDFMargin } from 'puppeteer';
 import { Buffer } from 'buffer';
 import path from 'path';
 import { Task, TaskResult, WorkType, WorkerManager } from './WorkerManager';
-import { HTMLWorker } from './HTMLWorker';
+import { HTMLWorker, mockScroll } from './HTMLWorker';
 import { sleep } from '../utils/sleep';
 // work -> entry -> page
 export interface Page {
@@ -99,68 +99,79 @@ export class Crawler {
   }
 
   async dispatchEntry(type: WorkType, entry: CrawlerEntry) {
-    const res = await this.axiosInstance?.get(entry.url, {
-      responseType: 'arraybuffer',
-    });
-    if (res) {
-      const contentType = `${res.headers['Content-Type']}` ?? '';
-
-      const result = /charset=([\w-]+)/.exec(contentType);
-      let charset = result?.[1];
-      const $ = cheerio.load(Buffer.from(res.data).toString('utf-8'));
-
-      if (!charset) {
-        charset = $('meta[charset]').attr('charset');
-      }
-
-      charset = charset ?? 'utf-8';
-      const content = iconv.decode(Buffer.from(res.data), charset);
-      let pages = entry.collectPage(content);
-      const entryURL = new URL(entry.url);
-      pages = pages
-        .filter(
-          (page) =>
-            page.url.startsWith('http://') ||
-            page.url.startsWith('https://') ||
-            page.url.startsWith('/') ||
-            page.url.startsWith('.') ||
-            page.url.startsWith('..'),
-        )
-        .map((page) => {
-          if (path.isAbsolute(page.url)) {
-            page.url = `${entryURL.protocol}//${entryURL.hostname}${entryURL.port ? `:${entryURL.port}` : ''}${
-              page.url
-            }`;
-          } else if (page.url.startsWith('..') || page.url.startsWith('.')) {
-            page.url = path.join(entry.url, page.url);
-          }
-          return page;
-        });
-      if (entry.includeEntry) {
-        pages.unshift({
-          url: entry.url,
-          title: $('meta[title]').text() || $('head title').text(),
-          type,
-          scrollMock: entry.scrollMock,
-          width: pages[0]?.width,
-          heigh: pages[0]?.heigh,
-          pdfMargin: pages[0]?.pdfMargin,
-        });
-      }
-      console.info(`entry: ${entry.url}, tasks: ${pages.length}`);
-      let count = 0;
-      const tasks: TaskResult[] = [];
-      for (const page of pages) {
-        if (page.requestInterval) {
-          await sleep(page.requestInterval * Math.random());
-        }
-        tasks.push(await this.dispatchPage(entry, page));
-        count++;
-        console.info(`page: ${page.url}, completed: ${count}/${pages.length}`);
-      }
-      return tasks;
+    const browser = await puppeteer.launch({ headless: true });
+    const $page = await browser.newPage();
+    await $page.setUserAgent(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+    );
+    await $page.goto(entry.url);
+    await $page.waitForNetworkIdle();
+    if (entry.scrollMock) {
+      await mockScroll($page, entry.targetRegion ?? '');
     }
-    throw new Error(`no response: ${entry.url}`);
+    const content = await $page.content();
+    await $page.close();
+    await browser.close();
+    // console.log(content);
+    // const res = await this.axiosInstance?.get(entry.url, {
+    //   responseType: 'arraybuffer',
+    // });
+    // if (res) {
+    //   const contentType = `${res.headers['Content-Type']}` ?? '';
+
+    //   const result = /charset=([\w-]+)/.exec(contentType);
+    //   let charset = result?.[1];
+    //   const $ = cheerio.load(Buffer.from(res.data).toString('utf-8'));
+
+    //   if (!charset) {
+    //     charset = $('meta[charset]').attr('charset');
+    //   }
+
+    //   charset = charset ?? 'utf-8';
+    //   const content = iconv.decode(Buffer.from(res.data), charset);
+    let pages = entry.collectPage(content);
+    const $ = cheerio.load(content);
+    const entryURL = new URL(entry.url);
+    pages = pages
+      .filter(
+        (page) =>
+          page.url.startsWith('http://') ||
+          page.url.startsWith('https://') ||
+          page.url.startsWith('/') ||
+          page.url.startsWith('.') ||
+          page.url.startsWith('..'),
+      )
+      .map((page) => {
+        if (path.isAbsolute(page.url)) {
+          page.url = `${entryURL.protocol}//${entryURL.hostname}${entryURL.port ? `:${entryURL.port}` : ''}${page.url}`;
+        } else if (page.url.startsWith('..') || page.url.startsWith('.')) {
+          page.url = path.join(entry.url, page.url);
+        }
+        return page;
+      });
+    if (entry.includeEntry) {
+      pages.unshift({
+        url: entry.url,
+        title: $('meta[title]').text() || $('head title').text(),
+        type,
+        scrollMock: entry.scrollMock,
+        width: pages[0]?.width,
+        heigh: pages[0]?.heigh,
+        pdfMargin: pages[0]?.pdfMargin,
+      });
+    }
+    console.info(`entry: ${entry.url}, tasks: ${pages.length}`);
+    let count = 0;
+    const tasks: TaskResult[] = [];
+    for (const page of pages) {
+      if (page.requestInterval) {
+        await sleep(page.requestInterval * Math.random());
+      }
+      tasks.push(await this.dispatchPage(entry, page));
+      count++;
+      console.info(`page: ${page.url}, completed: ${count}/${pages.length}`);
+    }
+    return tasks;
   }
 
   async dispathWork(work: CrawlerWork): Promise<WrokResult> {
