@@ -1,5 +1,6 @@
 import puppeteer, { Browser } from 'puppeteer';
 import { Page } from './Crawler';
+import { TaskCacheManager } from './TaskCacheManager';
 
 export enum WorkType {
   HTML = 0,
@@ -32,6 +33,8 @@ interface PoolUnit {
 }
 
 export class WorkerManager {
+  public cacheManager = new TaskCacheManager('.cache');
+
   public static factories: Map<WorkType, WorkerFactory> = new Map();
 
   public workerPool: Map<WorkType, PoolUnit> = new Map();
@@ -41,24 +44,40 @@ export class WorkerManager {
   constructor(public maxWroker: number) {}
 
   async init() {
-    this.browser = await puppeteer.launch({ headless: true });
+    this.browser = await puppeteer.launch({ headless: true, protocolTimeout: 5400000 });
   }
 
   async destory() {
     this.browser?.close();
   }
 
-  scheduleNextTask(unit: PoolUnit, worker: CrawlWorker) {
+  scheduleNextTask(unit: PoolUnit, idleWorker: CrawlWorker) {
     const t = unit.taskQueue.shift();
     if (t) {
-      t.resolve(
-        worker.run(t.task, { browser: this.browser as Browser }).then((res) => {
-          this.scheduleNextTask(unit, worker);
-          return res;
-        }),
-      );
+      const data = this.cacheManager.get(t.task);
+      if (data) {
+        t.resolve({
+          data,
+          meta: t.task.meta,
+        });
+        this.scheduleNextTask(unit, idleWorker);
+      } else {
+        t.resolve(
+          idleWorker
+            .run(t.task, { browser: this.browser as Browser })
+            .then((res) => {
+              this.cacheManager.set(t.task, res.data);
+              this.scheduleNextTask(unit, idleWorker);
+              return res;
+            })
+            .catch((err) => {
+              this.scheduleNextTask(unit, idleWorker);
+              throw err;
+            }),
+        );
+      }
     } else {
-      const index = unit.workers.indexOf(worker);
+      const index = unit.workers.indexOf(idleWorker);
       unit.workers.splice(index, 1);
     }
   }
@@ -68,20 +87,18 @@ export class WorkerManager {
     if (!factory) {
       throw new Error(`no supper work type: ${task.type}`);
     }
-    let unit = this.workerPool.get(task.type);
+    let unit = this.workerPool.get(task.type) as PoolUnit;
     if (!unit) {
       unit = { workers: [], taskQueue: [] };
       this.workerPool.set(task.type, unit);
     }
-    if (unit.workers.length < this.maxWroker) {
-      const newWorker = factory();
-      unit.workers.push(newWorker);
-      const result = await newWorker.run(task, { browser: this.browser as Browser });
-      this.scheduleNextTask(unit, newWorker);
-      return result;
-    }
     return new Promise<TaskResult>((resolve) => {
-      unit?.taskQueue.push({ task, resolve });
+      unit.taskQueue.push({ task, resolve });
+      if (unit.workers.length < this.maxWroker) {
+        const newWorker = factory();
+        unit.workers.push(newWorker);
+        this.scheduleNextTask(unit, newWorker);
+      }
     });
   }
 

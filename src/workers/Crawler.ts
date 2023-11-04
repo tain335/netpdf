@@ -1,8 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
-import iconv from 'iconv-lite';
 import * as cheerio from 'cheerio';
 import puppeteer, { PDFMargin } from 'puppeteer';
-import { Buffer } from 'buffer';
 import path from 'path';
 import { Task, TaskResult, WorkType, WorkerManager } from './WorkerManager';
 import { HTMLWorker, mockScroll } from './HTMLWorker';
@@ -39,7 +37,8 @@ interface CrawlerWork {
 }
 
 interface CrawlerOptions {
-  timeout: number;
+  timeout?: number;
+  maxWorker?: number;
 }
 
 interface EntryResult {
@@ -61,7 +60,7 @@ export class Crawler {
     this.axiosInstance = axios.create({
       timeout: this.options.timeout ?? 5000,
     });
-    this.workerManager = new WorkerManager(16);
+    this.workerManager = new WorkerManager(options.maxWorker ?? 4);
   }
 
   async init() {
@@ -112,23 +111,6 @@ export class Crawler {
     const content = await $page.content();
     await $page.close();
     await browser.close();
-    // console.log(content);
-    // const res = await this.axiosInstance?.get(entry.url, {
-    //   responseType: 'arraybuffer',
-    // });
-    // if (res) {
-    //   const contentType = `${res.headers['Content-Type']}` ?? '';
-
-    //   const result = /charset=([\w-]+)/.exec(contentType);
-    //   let charset = result?.[1];
-    //   const $ = cheerio.load(Buffer.from(res.data).toString('utf-8'));
-
-    //   if (!charset) {
-    //     charset = $('meta[charset]').attr('charset');
-    //   }
-
-    //   charset = charset ?? 'utf-8';
-    //   const content = iconv.decode(Buffer.from(res.data), charset);
     let pages = entry.collectPage(content);
     const $ = cheerio.load(content);
     const entryURL = new URL(entry.url);
@@ -161,16 +143,32 @@ export class Crawler {
       });
     }
     console.info(`entry: ${entry.url}, tasks: ${pages.length}`);
-    let count = 0;
+    let successCount = 0;
+    let failCount = 0;
     const tasks: TaskResult[] = [];
+    const promises: Promise<any>[] = [];
     for (const page of pages) {
       if (page.requestInterval) {
         await sleep(page.requestInterval * Math.random());
       }
-      tasks.push(await this.dispatchPage(entry, page));
-      count++;
-      console.info(`page: ${page.url}, completed: ${count}/${pages.length}`);
+      promises.push(
+        this.dispatchPage(entry, page)
+          .then((res) => {
+            tasks.push(res);
+            successCount++;
+            console.info(
+              `page: ${page.url}, success: ${successCount}/${pages.length}, fail: ${failCount}/${pages.length}`,
+            );
+          })
+          .catch(() => {
+            failCount++;
+            console.info(
+              `page: ${page.url}, success: ${successCount}/${pages.length}, fail: ${failCount}/${pages.length}`,
+            );
+          }),
+      );
     }
+    await Promise.all(promises);
     return tasks;
   }
 

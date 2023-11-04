@@ -3,8 +3,9 @@ import { CrawlWorker, CrawlWorkerOptions, Task } from './WorkerManager';
 
 export async function mockScroll(page: Page, region: string) {
   page.exposeFunction('waitForNetworkIdle', () => {
-    return page.waitForNetworkIdle();
+    return page.waitForNetworkIdle({ timeout: 3000 });
   });
+
   await page.$eval(region, (targetEl) => {
     let domEl = targetEl as HTMLElement;
     if (domEl) {
@@ -25,16 +26,26 @@ export async function mockScroll(page: Page, region: string) {
               prevScrollTop = scrollTop;
               scrollTop = domEl.scrollTop;
             } else {
-              // @ts-ignore
-              window.waitForNetworkIdle().then(() => {
-                resolve(null);
-              });
+              window
+                // @ts-ignore
+                .waitForNetworkIdle()
+                .then(() => {
+                  resolve(null);
+                })
+                .catch(() => {
+                  resolve(null);
+                });
               return;
             }
-            // @ts-ignore
-            window.waitForNetworkIdle().then(() => {
-              iter();
-            });
+            window
+              // @ts-ignore
+              .waitForNetworkIdle()
+              .then(() => {
+                iter();
+              })
+              .catch((err: any) => {
+                iter();
+              });
           };
           iter();
         });
@@ -66,6 +77,7 @@ export class HTMLWorker implements CrawlWorker {
       for (let i = 0; i < msgArgs.length; ++i) {
         args.push(await msgArgs[i].jsonValue());
       }
+      console.log(...args);
     });
 
     if (task.meta.removeRegions) {

@@ -193,19 +193,106 @@ import { merge } from './merger/PDFMerger';
       //     },
       //   ],
       // },
+      // {
+      //   type: WorkType.HTML,
+      //   entries: [
+      //     {
+      //       url: 'https://juejin.cn/column/7062622832886284295',
+      //       includeEntry: false,
+      //       requestInterval: 3000,
+      //       scrollMock: true,
+      //       targetRegion: '.article-list',
+      //       pdfMargin: { top: 40, bottom: 40, left: 40, right: 40 },
+      //       collectPage: (content) => {
+      //         const $ = cheerio.load(content);
+      //         const pages = $('.article-item .title')
+      //           .toArray()
+      //           .map((el) => {
+      //             return {
+      //               url: el.attribs.href,
+      //               title: $(el).text().trim(),
+      //               targetRegion: '.main-area .article',
+      //               type: WorkType.HTML,
+      //               width: 900,
+      //             };
+      //           });
+      //         console.log('pages.length:', pages.length);
+      //         return pages.filter((item) => !item.url.startsWith('#'));
+      //       },
+      //     },
+      //   ],
+      // },
+      // {
+      //   type: WorkType.HTML,
+      //   entries: [
+      //     {
+      //       url: 'https://juejin.cn/column/7284417436752527421',
+      //       includeEntry: false,
+      //       requestInterval: 3000,
+      //       scrollMock: true,
+      //       targetRegion: '.article-list',
+      //       pdfMargin: { top: 40, bottom: 40, left: 40, right: 40 },
+      //       collectPage: (content) => {
+      //         const $ = cheerio.load(content);
+      //         const pages = $('.article-item .title')
+      //           .toArray()
+      //           .map((el) => {
+      //             return {
+      //               url: el.attribs.href,
+      //               title: $(el).text().trim(),
+      //               targetRegion: '.main-area .article',
+      //               type: WorkType.HTML,
+      //               width: 900,
+      //             };
+      //           });
+      //         console.log('pages.length:', pages.length);
+      //         return pages.filter((item) => !item.url.startsWith('#'));
+      //       },
+      //     },
+      //   ],
+      // },
+      // {
+      //   type: WorkType.HTML,
+      //   entries: [
+      //     {
+      //       url: 'https://juejin.cn/column/7203258813893738556',
+      //       includeEntry: false,
+      //       requestInterval: 3000,
+      //       scrollMock: true,
+      //       targetRegion: '.article-list',
+      //       pdfMargin: { top: 40, bottom: 40, left: 40, right: 40 },
+      //       collectPage: (content) => {
+      //         const $ = cheerio.load(content);
+      //         const pages = $('.article-item .title')
+      //           .toArray()
+      //           .map((el) => {
+      //             return {
+      //               url: el.attribs.href,
+      //               title: $(el).text().trim(),
+      //               targetRegion: '.main-area .article',
+      //               type: WorkType.HTML,
+      //               width: 900,
+      //             };
+      //           });
+      //         console.log('pages.length:', pages.length);
+      //         return pages.filter((item) => !item.url.startsWith('#'));
+      //       },
+      //     },
+      //   ],
+      // },
       {
         type: WorkType.HTML,
         entries: [
           {
-            url: 'https://juejin.cn/column/7062622832886284295',
+            url: 'https://juejin.cn/user/1433418892322119/posts',
             includeEntry: false,
             requestInterval: 3000,
             scrollMock: true,
-            targetRegion: '.article-list',
+            targetRegion: '.entry-list',
             pdfMargin: { top: 40, bottom: 40, left: 40, right: 40 },
             collectPage: (content) => {
               const $ = cheerio.load(content);
-              const pages = $('.article-item .title')
+              const pages = $('.entry .title')
                 .toArray()
                 .map((el) => {
                   return {
@@ -216,7 +303,6 @@ import { merge } from './merger/PDFMerger';
                     width: 900,
                   };
                 });
-              console.log('pages.length:', pages.length);
               return pages.filter((item) => !item.url.startsWith('#'));
             },
           },
