@@ -65,6 +65,38 @@ export class HTMLWorker implements CrawlWorker {
     await page.setUserAgent(
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
     );
+    await page.setCookie(
+      {
+        name: 'sessionid',
+        value: '6f65ea5d9c85a9cdbddb7c733441d7d6',
+        domain: '.juejin.cn',
+      },
+      {
+        name: 'sessionid_ss',
+        value: '6f65ea5d9c85a9cdbddb7c733441d7d6',
+        domain: '.juejin.cn',
+      },
+      {
+        name: 'msToken',
+        value:
+          'eq5wG62IJ3bOu--QQuSXp4ux-1IlttpQhLJW7FqPqLchWUHLT1xFbSYn5p3tFXN-3FbVIE8e1JuL4KcLpa_h9VMztBwHb6PBW02Wa71eR0uZEptPkHbXQMjhn6XbtEps',
+        domain: '.juejin.cn',
+      },
+      {
+        name: 'csrf_session_id',
+        value: 'ac9cb52c14be7ad4897f69ee1d693c3e',
+        domain: 'api.juejin.cn',
+      },
+      {
+        name: 'sid_guard',
+        value: '6f65ea5d9c85a9cdbddb7c733441d7d6%7C1687917838%7C31536000%7CThu%2C+27-Jun-2024+02%3A03%3A58+GMT',
+        domain: '.juejin.cn',
+      },
+    );
+    await page.setExtraHTTPHeaders({
+      'X-Secsdk-Csrf-Token':
+        '000100000001011553046206739c8a7b39b1e2f5e39e559e940f78f3038566078176be6ceec5179a8275b769f261',
+    });
     await page.goto(task.meta.url);
     await page.waitForNetworkIdle();
     page.on('error', (err) => {
@@ -77,7 +109,7 @@ export class HTMLWorker implements CrawlWorker {
       for (let i = 0; i < msgArgs.length; ++i) {
         args.push(await msgArgs[i].jsonValue());
       }
-      console.log(...args);
+      console.log('worker: ', ...args);
     });
 
     if (task.meta.removeRegions) {

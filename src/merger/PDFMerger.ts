@@ -28,11 +28,11 @@ function createOutlineItem(
 }
 
 export async function merge(output: string, data: MergeData) {
+  const doc = await PDFDocument.create();
+  const titleMap = new Map<number, string>();
+  const refs: PDFRef[] = [];
   for (const result of data) {
     for (const entry of result.entries) {
-      const doc = await PDFDocument.create();
-      const titleMap = new Map<number, string>();
-      const refs: PDFRef[] = [];
       for (const task of entry.tasks) {
         const ext = await PDFDocument.load(task.data);
         const pages = await doc.copyPages(ext, ext.getPageIndices());
@@ -44,40 +44,39 @@ export async function merge(output: string, data: MergeData) {
         titleMap.set(pages[0].ref.objectNumber, task.meta.title);
         refs.push(pages[0].ref);
       }
-      const outlinesDictRef = doc.context.nextRef();
-      const outlinesDistMap = new Map();
-      outlinesDistMap.set(PDFName.Type, PDFName.of('Outlines'));
-      let nextRef: PDFRef;
-      let prevRef: PDFRef;
-      refs.forEach((ref, index) => {
-        const outlineRef = nextRef ?? doc.context.nextRef();
-        nextRef = doc.context.nextRef();
-        const isLast = index === refs.length - 1;
-
-        if (index === 0) {
-          outlinesDistMap.set(PDFName.of('First'), outlineRef);
-        }
-        if (isLast) {
-          outlinesDistMap.set(PDFName.of('Last'), outlineRef);
-          outlinesDistMap.set(PDFName.of('Count'), PDFNumber.of(refs.length));
-        }
-
-        const outlineItem = createOutlineItem(
-          doc,
-          titleMap.get(ref.objectNumber) ?? '',
-          outlinesDictRef,
-          isLast ? prevRef : nextRef,
-          ref,
-          isLast,
-        );
-        doc.context.assign(outlineRef, outlineItem);
-        prevRef = outlineRef;
-      });
-
-      doc.catalog.set(PDFName.of('Outlines'), outlinesDictRef);
-      const outlineDict = PDFDict.fromMapWithContext(outlinesDistMap, doc.context);
-      doc.context.assign(outlinesDictRef, outlineDict);
-      fs.writeFileSync(output, await doc.save());
     }
   }
+  const outlinesDictRef = doc.context.nextRef();
+  const outlinesDistMap = new Map();
+  outlinesDistMap.set(PDFName.Type, PDFName.of('Outlines'));
+  let nextRef: PDFRef;
+  let prevRef: PDFRef;
+  refs.forEach((ref, index) => {
+    const outlineRef = nextRef ?? doc.context.nextRef();
+    nextRef = doc.context.nextRef();
+    const isLast = index === refs.length - 1;
+
+    if (index === 0) {
+      outlinesDistMap.set(PDFName.of('First'), outlineRef);
+    }
+    if (isLast) {
+      outlinesDistMap.set(PDFName.of('Last'), outlineRef);
+      outlinesDistMap.set(PDFName.of('Count'), PDFNumber.of(refs.length));
+    }
+
+    const outlineItem = createOutlineItem(
+      doc,
+      titleMap.get(ref.objectNumber) ?? '',
+      outlinesDictRef,
+      isLast ? prevRef : nextRef,
+      ref,
+      isLast,
+    );
+    doc.context.assign(outlineRef, outlineItem);
+    prevRef = outlineRef;
+  });
+  doc.catalog.set(PDFName.of('Outlines'), outlinesDictRef);
+  const outlineDict = PDFDict.fromMapWithContext(outlinesDistMap, doc.context);
+  doc.context.assign(outlinesDictRef, outlineDict);
+  fs.writeFileSync(output, await doc.save());
 }
